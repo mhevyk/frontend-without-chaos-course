@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Хрестики-нулики</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,100;0,300;0,400;0,700;0,900;1,100;1,300;1,400;1,700;1,900&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --primary-color: #9614e6;
+        --secondary-color: #d2fc1c;
+        --bg-color: #ffffff;
+        --light-gray-color: #e9e9e9;
+        --dark-gray-color: #ababab;
+        --dark-color: #000000;
+      }
+
+      body {
+        font-family: "Lato", sans-serif;
+      }
+
+      p,
+      h1 {
+        margin: 0;
+      }
+
+      .board {
+        --cell-size: 100px;
+        --cell-gap: 6px;
+        --cell-border-width: 1px;
+
+        display: grid;
+        grid-template-columns: repeat(3, var(--cell-size));
+        gap: var(--cell-gap);
+        margin-top: 16px;
+      }
+
+      .cell {
+        width: var(--cell-size);
+        height: var(--cell-size);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background-color: var(--bg-color);
+        font-size: 72px;
+        cursor: pointer;
+        border: var(--cell-border-width) solid var(--dark-gray-color);
+        transition: background-color 300ms;
+        user-select: none;
+        font-weight: bold;
+      }
+
+      .board.game-over .cell,
+      .cell.filled {
+        pointer-events: none;
+        background-color: var(--light-gray-color);
+        border: var(--cell-border-width) solid var(--dark-gray-color);
+        color: var(--dark-gray-color);
+      }
+
+      .cell.filled.winner {
+        background-color: var(--secondary-color);
+        color: var(--dark-color);
+      }
+
+      section {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 16px;
+        padding: 48px 24px;
+      }
+
+      .button {
+        font-family: inherit;
+        border-radius: 6px;
+        padding: 10px 25px;
+        transition: 300ms;
+        text-transform: uppercase;
+        border: 2px solid transparent;
+        font-size: 14px;
+      }
+
+      .button:hover {
+        cursor: pointer;
+        background-color: transparent;
+      }
+
+      .button.is-primary {
+        background-color: var(--primary-color);
+        color: var(--bg-color);
+      }
+
+      .button.is-primary:hover {
+        border-color: var(--primary-color);
+        background-color: var(--bg-color);
+        color: var(--primary-color);
+      }
+
+      .cell:hover {
+        background-color: var(--light-gray-color);
+      }
+    </style>
+  </head>
+  <body>
+    <section>
+      <h1>Хрестики-нулики</h1>
+      <div class="board"></div>
+      <p data-message></p>
+      <button data-restart-button class="button is-primary">
+        Почати гру заново
+      </button>
+    </section>
+
+    <script>
+      const PLAYERS = {
+        CROSS: "X",
+        NOUGHT: "O",
+      };
+
+      const wrapWithPrimaryColorSpan = (text) =>
+        `<span style="color: var(--primary-color);">${text}</span>`;
+
+      const MESSAGES = {
+        TURN: (player) =>
+          `Ходять ${wrapWithPrimaryColorSpan(
+            player === PLAYERS.CROSS ? "хрестики" : "нулики"
+          )}`,
+        WINNER: (player) =>
+          `Перемога за ${wrapWithPrimaryColorSpan(
+            player === PLAYERS.CROSS ? "хрестиками" : "нуликами"
+          )}! 🎉`,
+        DRAW: "Нічия!",
+      };
+
+      const EMPTY_CELL_CONTENT = "";
+
+      const SELECTORS = {
+        BOARD: ".board",
+        RESTART_BUTTON: "[data-restart-button]",
+        MESSAGE: "[data-message]",
+        CELL: ".cell",
+      };
+
+      let board = Array(9).fill(EMPTY_CELL_CONTENT);
+      let currentPlayer = PLAYERS.CROSS;
+      let isGameOver = false;
+
+      const boardElement = document.querySelector(SELECTORS.BOARD);
+      const restartButton = document.querySelector(SELECTORS.RESTART_BUTTON);
+      const messageElement = document.querySelector(SELECTORS.MESSAGE);
+
+      drawBoard();
+      restartButton.addEventListener("click", restartGame);
+
+      function printMessage(message) {
+        messageElement.innerHTML = `<strong>${message}</strong>`;
+      }
+
+      function clearBoard() {
+        boardElement.innerHTML = "";
+      }
+
+      function isCellFilled(cell) {
+        return cell !== EMPTY_CELL_CONTENT;
+      }
+
+      function passMoveToNextPlayer() {
+        currentPlayer =
+          currentPlayer === PLAYERS.CROSS ? PLAYERS.NOUGHT : PLAYERS.CROSS;
+      }
+
+      function createCell({ symbol, cellIndex }) {
+        const cell = document.createElement("div");
+        cell.classList.add("cell");
+
+        if (symbol !== EMPTY_CELL_CONTENT) {
+          cell.classList.add("filled");
+          cell.textContent = symbol;
+        }
+
+        cell.addEventListener("click", () => onCellClick(cellIndex));
+        return cell;
+      }
+
+      function drawBoard() {
+        clearBoard();
+
+        board.forEach((symbol, cellIndex) => {
+          const cell = createCell({ symbol, cellIndex });
+          boardElement.appendChild(cell);
+        });
+
+        printMessage(MESSAGES.TURN(currentPlayer));
+      }
+
+      function onCellClick(cellIndex) {
+        if (isGameOver || isCellFilled(board[cellIndex])) {
+          return;
+        }
+
+        board[cellIndex] = currentPlayer;
+        drawBoard();
+
+        const winningCombination = findWinningCombination();
+
+        if (winningCombination) {
+          highlightWinningCells(winningCombination);
+          printMessage(MESSAGES.WINNER(currentPlayer));
+
+          isGameOver = true;
+          boardElement.classList.add("game-over");
+          return;
+        }
+
+        if (board.every(isCellFilled)) {
+          printMessage(MESSAGES.DRAW);
+
+          isGameOver = true;
+          boardElement.classList.add("game-over");
+          return;
+        }
+
+        passMoveToNextPlayer();
+        printMessage(MESSAGES.TURN(currentPlayer));
+      }
+
+      function findWinningCombination() {
+        const rowCombinations = [
+          [0, 1, 2],
+          [3, 4, 5],
+          [6, 7, 8],
+        ];
+
+        const columnCombinations = [
+          [0, 3, 6],
+          [1, 4, 7],
+          [2, 5, 8],
+        ];
+
+        const diagonalCombinations = [
+          [0, 4, 8],
+          [2, 4, 6],
+        ];
+
+        const allCombinations = [
+          ...rowCombinations,
+          ...columnCombinations,
+          ...diagonalCombinations,
+        ];
+
+        for (const [a, b, c] of allCombinations) {
+          if (board[a] && board[a] === board[b] && board[a] === board[c]) {
+            return [a, b, c];
+          }
+        }
+
+        return null;
+      }
+
+      function highlightWinningCells(cellIndexes) {
+        const cells = boardElement.querySelectorAll(SELECTORS.CELL);
+
+        cellIndexes.forEach((index) => {
+          const cell = cells[index];
+          cell.classList.add("winner");
+        });
+      }
+
+      function restartGame() {
+        board = Array(9).fill("");
+        currentPlayer = "X";
+        isGameOver = false;
+        boardElement.classList.remove("game-over");
+        drawBoard();
+      }
+    </script>
+  </body>
+</html>
